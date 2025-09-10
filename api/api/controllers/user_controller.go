@@ -20,10 +20,8 @@ func NewUserController(store store.Store) *UserController {
 }
 
 func (u *UserController) Profile(c *gin.Context) {
-	userId := c.GetInt("userId")
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Welcome to your profile 🎉",
-		"userId":  userId,
 	})
 }
 

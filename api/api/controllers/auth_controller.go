@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Iknite-Space/sqlc-example-api/db/store"
@@ -10,7 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("supersecrets")
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 type AuthController struct {
 	store store.Store
@@ -49,7 +52,7 @@ func (h *AuthController) Login(c *gin.Context) {
 	//create access token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"exp": time.Now().Add(1 * time.Minute).Unix(),
 	})
 	accessToken, _ := token.SignedString(jwtSecret)
 
@@ -60,8 +63,69 @@ func (h *AuthController) Login(c *gin.Context) {
 	})
 	refreshToken, _ := refresh.SignedString(jwtSecret)
 
+	//set refresh token as HttpOnly cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		HttpOnly: true,
+		Secure:   false, // true in production (https)
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/refresh",
+		MaxAge:   7 * 24 * 60 * 60,
+	})
+
 	c.JSON(http.StatusOK, gin.H{
-		"accessToken":  accessToken,
-		"refreshToken": refreshToken,
+		"success":     true,
+		"accessToken": accessToken,
+	})
+}
+
+// refresh token function
+func (h *AuthController) Refresh(c *gin.Context) {
+	//get the refresh token from httponly cookie
+	cookie, err := c.Request.Cookie("refresh_token")
+	if err != nil || cookie.Value == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token missing"})
+		return
+	}
+
+	refreshToken := cookie.Value
+
+	//parse and validate the refresh token
+	token, err := jwt.Parse(refreshToken, func(t *jwt.Token) (interface{}, error) {
+		// Ensure HMAC signing
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return jwtSecret, nil
+	})
+
+	if err != nil {
+		if errors.Is(err, jwt.ErrTokenExpired) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token expired"})
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+		}
+		c.Abort()
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token claims"})
+		return
+	}
+
+	userId := claims["sub"]
+
+	//issue new access token
+	newAccessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": userId,
+		"exp": time.Now().Add(1 * time.Minute).Unix(),
+	})
+	accessTokenString, _ := newAccessToken.SignedString(jwtSecret)
+
+	c.JSON(http.StatusOK, gin.H{
+		"accessToken": accessTokenString,
 	})
 }
