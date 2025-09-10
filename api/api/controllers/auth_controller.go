@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/Iknite-Space/sqlc-example-api/db/store"
@@ -10,7 +11,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var jwtSecret = []byte("supersecrets")
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
 
 type AuthController struct {
 	store store.Store
@@ -49,7 +50,7 @@ func (h *AuthController) Login(c *gin.Context) {
 	//create access token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(15 * time.Minute).Unix(),
+		"exp": time.Now().Add(1 * time.Minute).Unix(),
 	})
 	accessToken, _ := token.SignedString(jwtSecret)
 
