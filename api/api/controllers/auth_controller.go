@@ -63,27 +63,36 @@ func (h *AuthController) Login(c *gin.Context) {
 	})
 	refreshToken, _ := refresh.SignedString(jwtSecret)
 
+	//set refresh token as HttpOnly cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		HttpOnly: true,
+		Secure:   false, // true in production (https)
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/refresh",
+		MaxAge:   7 * 24 * 60 * 60,
+	})
+
 	c.JSON(http.StatusOK, gin.H{
-		"success":      true,
-		"accessToken":  accessToken,
-		"refreshToken": refreshToken,
+		"success":     true,
+		"accessToken": accessToken,
 	})
 }
 
 // refresh token function
 func (h *AuthController) Refresh(c *gin.Context) {
-	//get the refresh token from request
-	var body struct {
-		RefreshToken string `json:"refreshToken"`
-	}
-
-	if err := c.ShouldBindJSON(&body); err != nil || body.RefreshToken == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "refresh token required"})
+	//get the refresh token from httponly cookie
+	cookie, err := c.Request.Cookie("refresh_token")
+	if err != nil || cookie.Value == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token missing"})
 		return
 	}
 
+	refreshToken := cookie.Value
+
 	//parse and validate the refresh token
-	token, err := jwt.Parse(body.RefreshToken, func(t *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(refreshToken, func(t *jwt.Token) (interface{}, error) {
 		// Ensure HMAC signing
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])

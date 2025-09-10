@@ -20,7 +20,6 @@ const Home: React.FC = () => {
   useEffect(() => {
     const fetchProfile = async () => {
         let token = localStorage.getItem("access_token")
-        const refreshToken = localStorage.getItem("refresh_token");
 
         if (!token) {
           setError("No token found. Please login first.")
@@ -33,16 +32,17 @@ const Home: React.FC = () => {
         const res = await fetch("http://localhost:8085/profile", {
             method: "GET",
             headers: { "Authorization": `Bearer ${token}` },
+            credentials: "include"
         })
 
         const data = await res.json();
 
-        if(res.status === 401 && data.error === "Token expired" && refreshToken){
+        if(res.status === 401 && data.error === "Token expired"){
             //access token expired, call refresh token endpoint
             const refreshRes = await fetch("http://localhost:8085/refresh",{
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ refreshToken }),
+                credentials: "include" //send refresh token cookie
             })
 
             if(!refreshRes.ok) throw new Error("Refresh failed");
