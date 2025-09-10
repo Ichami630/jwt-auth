@@ -61,6 +61,7 @@ func (h *AuthController) Login(c *gin.Context) {
 	refreshToken, _ := refresh.SignedString(jwtSecret)
 
 	c.JSON(http.StatusOK, gin.H{
+		"success":      true,
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
 	})

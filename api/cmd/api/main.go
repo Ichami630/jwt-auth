@@ -14,6 +14,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/Iknite-Space/sqlc-example-api/api"
+	"github.com/Iknite-Space/sqlc-example-api/api/middlewares"
 	"github.com/Iknite-Space/sqlc-example-api/db/repo"
 	"github.com/Iknite-Space/sqlc-example-api/db/store"
 )
@@ -79,10 +80,13 @@ func run() error {
 	querier := store.NewStore(db)
 
 	// We create a new http handler using the database querier.
-	handler := api.NewRouter(querier)
+	handler := api.NewRouter(querier).WireHttpHandler()
+
+	// Wrap the handler with CORS middleware
+	handlerWithCORS := middlewares.CorsMiddleware(handler)
 
 	// And finally we start the HTTP server on the configured port.
-	err = http.ListenAndServe(fmt.Sprintf(":%d", config.ListenPort), handler)
+	err = http.ListenAndServe(fmt.Sprintf(":%d", config.ListenPort), handlerWithCORS)
 	if err != nil {
 		fmt.Println("Error starting server:", err)
 	}
