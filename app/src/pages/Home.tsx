@@ -7,14 +7,20 @@ interface Profile {
   error?: string
 }
 
+interface Token {
+    accessToken: string
+    refreshToken?: string
+    error?: string 
+}
+
 const Home: React.FC = () => {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem("access_token")
+        let token = localStorage.getItem("access_token")
+        const refreshToken = localStorage.getItem("refresh_token");
 
         if (!token) {
           setError("No token found. Please login first.")
@@ -23,33 +29,52 @@ const Home: React.FC = () => {
           }, 1500) 
           return
         }
-
+      try {
         const res = await fetch("http://localhost:8085/profile", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
-          },
-          credentials: "include",
+            method: "GET",
+            headers: { "Authorization": `Bearer ${token}` },
         })
-        const data: Profile = await res.json()
-        if (!res.ok) {
-          //handle unauthorised or expired token
-          if (res.status === 401 && data.error === "Token expired" ){
-            setError("Session Expired. Redirecting to login...");
-            localStorage.removeItem("access_token"); //clear old token
-            setTimeout(() => {
-                window.location.href = "/"
-            }, 1500) 
+
+        const data = await res.json();
+
+        if(res.status === 401 && data.error === "Token expired" && refreshToken){
+            //access token expired, call refresh token endpoint
+            const refreshRes = await fetch("http://localhost:8085/refresh",{
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refreshToken }),
+            })
+
+            if(!refreshRes.ok) throw new Error("Refresh failed");
+
+            const refreshData: Token = await refreshRes.json();
+            token = refreshData.accessToken;
+            localStorage.setItem("access_token",token)
+
+            // Retry original request
+            const retryRes = await fetch("http://localhost:8085/profile", {
+                method: "GET",
+                headers: { "Authorization": `Bearer ${token}` },
+            })
+
+            const retryData = await retryRes.json()
+            if(!refreshRes.ok && retryData.error === "Token expired"){
+                localStorage.removeItem("access_token"); //clear the access token
+                setError("Session EXpired. Redirecting to Login...")
+                setTimeout(()=>{
+                    window.location.href = "/";
+                },1500);
+            }
+            setProfile(retryData)
             return
-          }else{
-            throw new Error(data.error || "Unauthorized or error fetching profile");
-          }
+
         }
-        console.log(data)
+
+        if (!res.ok) throw new Error("Failed to fetch profile")
         setProfile(data)
-      } catch (err: any) {
-        setError(err.message)
+        
+      } catch (error:any) {
+        setError(error.message)
       }
     }
 
@@ -63,14 +88,14 @@ const Home: React.FC = () => {
       {profile ? (
         <div>
           <p>
-            <strong>ID:</strong> {profile.id}
+            <strong>ID:</strong> {profile.id || "001"}
           </p>
           <p>
-            <strong>Email:</strong> {profile.email}
+            <strong>Email:</strong> {profile.email || "test@gmail.com"}
           </p>
           {profile.name && (
             <p>
-              <strong>Name:</strong> {profile.name}
+              <strong>Name:</strong> {profile.name || "ichami"}
             </p>
           )}
         </div>

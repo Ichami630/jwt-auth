@@ -33,6 +33,7 @@ func (h *Router) WireHttpHandler() http.Handler {
 	//public routes
 	r.POST("/login", authCtrl.Login)
 	r.POST("/register", userCtrl.Register)
+	r.POST("/refresh", authCtrl.Refresh)
 
 	//protected routes
 	protected := r.Group("/")

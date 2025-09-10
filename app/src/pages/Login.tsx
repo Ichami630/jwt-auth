@@ -38,6 +38,7 @@ const Login: React.FC = () => {
 
       // ✅ Save token to localStorage (web) or AsyncStorage (React Native)
       localStorage.setItem("access_token", data.accessToken);
+      localStorage.setItem("refresh_token",data.refreshToken);
 
       setMessage("✅ Login successful!");
       setFormData({ email: "", password: "" });
